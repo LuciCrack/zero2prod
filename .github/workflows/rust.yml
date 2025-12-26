@@ -15,7 +15,7 @@ jobs:
     # Sets the name `Test` for the job, which is displayed in the GitHub UI
     name: Test
     # Containers must run in Linux based operating systems
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
@@ -35,7 +35,7 @@ jobs:
   # `fmt` container job
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - name: Install the Rust toolchain
@@ -47,7 +47,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - name: Install the Rust toolchain
@@ -60,7 +60,7 @@ jobs:
   # `coverage` container job
   coverage:
     name: Code coverage
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - name: Install the Rust toolchain
