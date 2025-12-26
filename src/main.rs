@@ -3,6 +3,7 @@ use axum::{
     Router,
     extract::Path,
 };
+use axum::http::StatusCode;
 use serde::Deserialize;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::prelude::*;
@@ -22,6 +23,7 @@ async fn main() {
     let app = Router::new()
         .route("/hello", get(hello))
         .route("/hello/{name}", get(hello))
+        .route("/health_check", get(health_check))
         .layer(TraceLayer::new_for_http());
 
     // run our app with hyper, listening globally on port 3000
@@ -41,4 +43,8 @@ async fn hello(Path(params): Path<HelloParams>) -> String {
     } else {
         "Hello, World!".to_string()
     }
+}
+
+async fn health_check() {
+
 }
