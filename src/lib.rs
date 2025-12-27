@@ -1,21 +1,8 @@
-use axum::{
-    routing::get,
-    Router,
-};
+use axum::{Router, routing::get};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
-use tracing_subscriber::prelude::*;
 
 pub async fn run(listener: TcpListener) -> Result<(), std::io::Error> {
-    // Init tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "zero2prod=trace,tower_http=error".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
     // build our application with a single route
     let app = Router::new()
         .route("/health_check", get(health_check))
