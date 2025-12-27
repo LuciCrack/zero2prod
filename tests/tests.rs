@@ -4,6 +4,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 static TRACING: Once = Once::new();
 
 fn run_app() -> String {
+    // Init tracing
     TRACING.call_once(|| {
         tracing_subscriber::registry()
             .with(
