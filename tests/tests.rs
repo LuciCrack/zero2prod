@@ -29,9 +29,6 @@ fn run_app() -> String {
     format!("http://localhost:{}", port)
 }
 
-
-
-
 #[tokio::test]
 async fn test_health_check() {
     // Start App
@@ -57,14 +54,21 @@ async fn valid_user_subscribe_returns_200() {
     let client = reqwest::Client::new();
 
     // POST request body of a valid user subscribing
-    let body =  "name=lupicipro&email=asdlolazoasd%40gmail.com"; // %40 == @ in url encoded
+    let body = "name=lupicipro&email=asdlolazoasd%40gmail.com"; // %40 == @ in url encoded
     let response = client
         .post(format!("{}/subscriptions", addr))
         .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body).send().await
+        .body(body)
+        .send()
+        .await
         .expect("Failed to execute request.");
 
-    assert_eq!(200, response.status().as_u16(), "unsuccessfull request, address: {}", addr);
+    assert_eq!(
+        200,
+        response.status().as_u16(),
+        "unsuccessfull request, address: {}",
+        addr
+    );
 }
 
 #[tokio::test]
@@ -75,7 +79,7 @@ async fn invalid_user_subscribe_returns_400() {
     let test_cases = vec![
         ("name=lupicipro", "no email"),
         ("email=asdlolazoasd%40gmail.com", "no name"),
-        ("", "missing name and email")
+        ("", "missing name and email"),
     ];
 
     for (invalid_body, error_message) in test_cases {
@@ -83,13 +87,16 @@ async fn invalid_user_subscribe_returns_400() {
             .post(format!("{}/subscriptions", addr))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(invalid_body)
-            .send().await.expect("Failed to execute request.");
+            .send()
+            .await
+            .expect("Failed to execute request.");
 
         assert_eq!(
             400,
             response.status().as_u16(),
             "The API did not fail with 400 Bad Request when the payload was: {}, address: {}",
-            error_message, addr
+            error_message,
+            addr
         );
     }
 }
