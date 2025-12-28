@@ -6,6 +6,4 @@ pub struct FormData {
     email: String,
 }
 
-pub async fn subscribe(Form(data): Form<FormData>) {
-
-}
+pub async fn subscribe(Form(data): Form<FormData>) {}
