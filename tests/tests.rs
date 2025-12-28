@@ -1,12 +1,18 @@
-use sqlx::{Connection, PgConnection};
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::Once;
+use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use zero2prod::{configuration, configuration::*};
+use uuid::Uuid;
+use zero2prod::configuration::*;
 
 static TRACING: Once = Once::new();
 
-fn run_app() -> String {
+struct TestApp {
+    address: String,
+    pool: PgPool,
+}
+
+async fn run_app() -> TestApp {
     // Init tracing
     TRACING.call_once(|| {
         tracing_subscriber::registry()
@@ -21,27 +27,57 @@ fn run_app() -> String {
     // Run App
     let addr = "0.0.0.0:0";
 
-    // Little workaround: I don't want this function to be async, to return a Future
-    // So we will get a std TcpListener and turn it into a tokio::net::TcpListener
-    let std_listener = std::net::TcpListener::bind(addr).unwrap();
-    let _ = std_listener.set_nonblocking(true);
-    let port = std_listener.local_addr().unwrap().port();
-    let listener = tokio::net::TcpListener::from_std(std_listener).unwrap();
-    let _ = tokio::spawn(zero2prod::run(listener));
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
 
-    // Return the used address so the test can use it
-    format!("http://localhost:{}", port)
+    let mut configuration = get_configuration().expect("Failed to read configuration");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+
+    let pool = configure_database(&configuration.database).await;
+
+    let _ = tokio::spawn(zero2prod::run(listener, pool.clone()));
+
+    let address = format!("http://localhost:{}", port);
+    TestApp { address, pool }
+}
+
+async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // Create database
+    let maintenance_settings = DatabaseSettings {
+        database_name: "postgres".to_string(),
+        username: "postgres".to_string(),
+        password: "password".to_string(),
+        ..config.clone()
+    };
+
+    let mut connection = PgConnection::connect(&maintenance_settings.connection_string())
+        .await
+        .unwrap();
+
+    connection.execute(format!(r#"CREATE DATABASE "{}""#, config.database_name).as_str())
+        .await
+        .unwrap();
+
+    let pool = PgPoolOptions::new()
+        .max_connections(100)
+        .connect(&maintenance_settings.connection_string())
+        .await
+        .unwrap();
+
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+
+    pool
 }
 
 #[tokio::test]
 async fn test_health_check() {
     // Start App
-    let addr = run_app();
+    let app = run_app().await;
     // Start client
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("{}/health_check", addr))
+        .get(format!("{}/health_check", app.address))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -54,16 +90,13 @@ async fn test_health_check() {
 
 #[tokio::test]
 async fn valid_user_subscribe_returns_200() {
-    let addr = run_app();
+    let app = run_app().await;
     let client = reqwest::Client::new();
-    let configuration = get_configuration().expect("Failed to read configuration.");
-    let connection_string = configuration.database.connection_string();
-    let mut connection = PgConnection::connect(&connection_string).await.unwrap();
 
     // POST request body of a valid user subscribing
     let body = "name=lupicipro&email=asdlolazoasd%40gmail.com"; // %40 == @ in url encoded
     let response = client
-        .post(format!("{}/subscriptions", addr))
+        .post(format!("{}/subscriptions", app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -74,11 +107,11 @@ async fn valid_user_subscribe_returns_200() {
         200,
         response.status().as_u16(),
         "unsuccessfull request, address: {}",
-        addr
+        app.address
     );
 
     let saved = sqlx::query!("SELECT email, name FROM subscriptions")
-        .fetch_one(&mut connection)
+        .fetch_one(&app.pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
@@ -88,7 +121,7 @@ async fn valid_user_subscribe_returns_200() {
 
 #[tokio::test]
 async fn invalid_user_subscribe_returns_400() {
-    let addr = run_app();
+    let app = run_app().await;
     let client = reqwest::Client::new();
 
     let test_cases = vec![
@@ -99,7 +132,7 @@ async fn invalid_user_subscribe_returns_400() {
 
     for (invalid_body, error_message) in test_cases {
         let response = client
-            .post(format!("{}/subscriptions", addr))
+            .post(format!("{}/subscriptions", app.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(invalid_body)
             .send()
@@ -107,11 +140,11 @@ async fn invalid_user_subscribe_returns_400() {
             .expect("Failed to execute request.");
 
         assert_eq!(
-            400,
+            422,
             response.status().as_u16(),
             "The API did not fail with 400 Bad Request when the payload was: {}, address: {}",
             error_message,
-            addr
+            app.address
         );
     }
 }
