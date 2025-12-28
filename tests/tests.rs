@@ -1,5 +1,8 @@
+use sqlx::{Connection, PgConnection};
 use std::sync::Once;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use zero2prod::{configuration, configuration::*};
 
 static TRACING: Once = Once::new();
 
@@ -53,6 +56,9 @@ async fn test_health_check() {
 async fn valid_user_subscribe_returns_200() {
     let addr = run_app();
     let client = reqwest::Client::new();
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_string = configuration.database.connection_string();
+    let mut connection = PgConnection::connect(&connection_string).await.unwrap();
 
     // POST request body of a valid user subscribing
     let body = "name=lupicipro&email=asdlolazoasd%40gmail.com"; // %40 == @ in url encoded
@@ -70,6 +76,14 @@ async fn valid_user_subscribe_returns_200() {
         "unsuccessfull request, address: {}",
         addr
     );
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions")
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "asdlolazoasd@gmail.com");
+    assert_eq!(saved.name, "lupicipro");
 }
 
 #[tokio::test]
