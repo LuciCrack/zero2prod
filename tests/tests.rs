@@ -1,6 +1,6 @@
+use sqlx::postgres::PgPoolOptions;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::Once;
-use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 use zero2prod::configuration::*;
@@ -54,7 +54,8 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .unwrap();
 
-    connection.execute(format!(r#"CREATE DATABASE "{}""#, config.database_name).as_str())
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}""#, config.database_name).as_str())
         .await
         .unwrap();
 

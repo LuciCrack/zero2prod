@@ -18,13 +18,15 @@ pub async fn subscribe(State(pool): State<PgPool>, Form(data): Form<FormData>) -
         data.email,
         data.name,
         Utc::now()
-    ).execute(&pool).await;
+    )
+    .execute(&pool)
+    .await;
 
     match result {
         Ok(_) => StatusCode::OK,
         Err(e) => {
             tracing::error!("Error in subscribing query: {e}");
             StatusCode::INTERNAL_SERVER_ERROR
-        },
+        }
     }
 }
