@@ -1,9 +1,12 @@
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use zero2prod::configuration::get_configuration;
 use zero2prod::run;
 
 #[tokio::main]
 async fn main() {
+    // Load configuration from configuration.yaml
+    let configuration = get_configuration().expect("Failed to read configuration");
     // Init tracing
     tracing_subscriber::registry()
         .with(
@@ -13,6 +16,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:2000").await.unwrap();
+    let address = format!("0.0.0.0:{}", configuration.application_port);
+    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
     let _ = run(listener).await;
 }
