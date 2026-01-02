@@ -3,24 +3,16 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod::configuration::*;
-use zero2prod::telemetry::{init_subscriber, get_subscriber};
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 static TRACING: LazyLock<()> = LazyLock::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
     if std::env::var("TEST_LOG").is_ok() {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::stdout,
-        );
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
         init_subscriber(subscriber);
     } else {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::sink,
-        );
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
         init_subscriber(subscriber);
     }
 });
@@ -60,12 +52,10 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         ..config.clone()
     };
 
-    let connection_string= &maintenance_settings.connection_string();
+    let connection_string = &maintenance_settings.connection_string();
     tracing::info!("{}", connection_string);
 
-    let mut connection = PgConnection::connect(connection_string)
-        .await
-        .unwrap();
+    let mut connection = PgConnection::connect(connection_string).await.unwrap();
 
     (&mut connection)
         .execute(format!(r#"CREATE DATABASE "{}""#, config.database_name).as_str())
