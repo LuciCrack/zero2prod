@@ -1,11 +1,29 @@
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-use std::sync::Once;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod::configuration::*;
+use zero2prod::telemetry::{init_subscriber, get_subscriber};
 
-static TRACING: Once = Once::new();
+static TRACING: LazyLock<()> = LazyLock::new(|| {
+    let default_filter_level = "info".to_string();
+    let subscriber_name = "test".to_string();
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(
+            subscriber_name,
+            default_filter_level,
+            std::io::stdout,
+        );
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(
+            subscriber_name,
+            default_filter_level,
+            std::io::sink,
+        );
+        init_subscriber(subscriber);
+    }
+});
 
 struct TestApp {
     address: String,
@@ -14,15 +32,7 @@ struct TestApp {
 
 async fn run_app() -> TestApp {
     // Init tracing
-    TRACING.call_once(|| {
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "zero2prod=trace,tower_http=error".into()),
-            )
-            .with(tracing_subscriber::fmt::layer().pretty())
-            .init();
-    });
+    LazyLock::force(&TRACING);
 
     // Run App
     let addr = "0.0.0.0:0";
@@ -62,6 +72,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .unwrap();
 
+    // Create Pool Connection to new database
     let isolated_connection_string = &config.connection_string();
 
     let pool = PgPoolOptions::new()
@@ -88,7 +99,7 @@ async fn test_health_check() {
         .await
         .expect("Failed to execute request.");
 
-    println!("{:?}", response);
+    tracing::info!("health_check Response: {:?}", response);
 
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
