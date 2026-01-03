@@ -76,10 +76,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .unwrap();
 
-    match pool {
-        Ok(pool) => sqlx::migrate!("./migrations").run(&pool).await.unwrap(),
-        Err(e) => tracing::error!("Failed to migrate database {}: {}", config.database_name, e),
-    }
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
 
     pool
 }
