@@ -1,3 +1,4 @@
+use secrecy::SecretBox;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::LazyLock;
@@ -6,7 +7,7 @@ use zero2prod::configuration::*;
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 static TRACING: LazyLock<()> = LazyLock::new(|| {
-    let default_filter_level = "info".to_string();
+    let default_filter_level = "debug".to_string();
     let subscriber_name = "test".to_string();
     if std::env::var("TEST_LOG").is_ok() {
         let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
@@ -48,19 +49,23 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let maintenance_settings = DatabaseSettings {
         database_name: "postgres".to_string(),
         username: "postgres".to_string(),
-        password: "password".to_string(),
-        ..config.clone()
+        password: SecretBox::new(Box::from("password".to_string())),
+        port: config.port.clone(),
+        host: config.host.clone(),
     };
 
+    // Exposing secret here
     let connection_string = &maintenance_settings.connection_string();
-    tracing::info!("{}", connection_string);
 
     let mut connection = PgConnection::connect(connection_string).await.unwrap();
 
-    (&mut connection)
+    match (&mut connection)
         .execute(format!(r#"CREATE DATABASE "{}""#, config.database_name).as_str())
         .await
-        .unwrap();
+    {
+        Ok(_) => (),
+        Err(e) => tracing::error!("Failed to create database {}: {}", config.database_name, e),
+    }
 
     // Create Pool Connection to new database
     let isolated_connection_string = &config.connection_string();
@@ -71,7 +76,10 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .unwrap();
 
-    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+    match pool {
+        Ok(pool) => sqlx::migrate!("./migrations").run(&pool).await.unwrap(),
+        Err(e) => tracing::error!("Failed to migrate database {}: {}", config.database_name, e),
+    }
 
     pool
 }
