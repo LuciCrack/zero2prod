@@ -2430,6 +2430,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3152,7 +3153,9 @@ dependencies = [
  "serde",
  "sqlx",
  "tokio",
+ "tower",
  "tower-http",
+ "tower-layer",
  "tracing",
  "tracing-bunyan-formatter",
  "tracing-log 0.2.0",
