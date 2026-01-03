@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 use crate::routes::{health_check, subscribe};
 
 pub async fn run(listener: TcpListener, pool: PgPool) -> Result<(), std::io::Error> {
-    // build our application with a single route
+    // Build application
     let app = Router::new()
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
